@@ -1,9 +1,9 @@
+import json
 import logging
 import os
 import time
 from http import HTTPStatus
 from logging import StreamHandler
-from urllib.error import HTTPError
 
 import requests
 import telegram
@@ -37,7 +37,11 @@ HOMEWORK_STATUSES = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
-homework_status_cache = None
+
+class Cache:
+    """Кэш статуса."""
+
+    homework_status_cache = None
 
 
 def send_message(bot, message):
@@ -45,7 +49,7 @@ def send_message(bot, message):
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logger.info('Сообщение отправлено')
-    except Exception as error:
+    except telegram.TelegramError as error:
         logger.error(f'сбой при отправке сообщения в Telegram {error}')
 
 
@@ -56,20 +60,31 @@ def get_api_answer(current_timestamp):
         params = {'from_date': timestamp}
         response = requests.get(ENDPOINT, headers=HEADERS, params=params)
         assert response.status_code == HTTPStatus.OK
-    except HTTPError:
-        logger.error('недоступность эндпоинта')
-    return response.json()
+        res = response.json()
+    except requests.exceptions.RequestException as error:
+        logger.error(f'недоступность эндпоинта {error}')
+        raise SystemExit(error)
+    except json.decoder.JSONDecodeError:
+        logger.error('JSONDecodeError')
+    return res
 
 
 def check_response(response):
     """Проверка API на корректность."""
-    homework = response['homeworks']
+    try:
+        homework = response['homeworks']
+    except KeyError:
+        logger.error('отсутсвие ключа "homeworks" в API')
     if not isinstance(homework, list):
         logger.error('не корректный тип API')
         raise ValueError
     else:
-        for item in response['homeworks']:
-            return item
+        try:
+            res = response['homeworks'][0]
+        except IndexError:
+            logger.debug('отсутствие в ответе новых статусов')
+        else:
+            return res
 
 
 def parse_status(homework):
@@ -77,17 +92,19 @@ def parse_status(homework):
     if not homework:
         return None
     if 'homework_name' not in homework:
-        logger.error('отсутствие ожидаемых ключей в ответе API')
+        logger.error('отсутствие ключа "homework_name" в ответе API')
+        raise KeyError
+    if 'status' not in homework:
+        logger.error('отсутствие ключа "status" в ответе API')
         raise KeyError
     homework_name = homework['homework_name']
     homework_status = homework['status']
-    global homework_status_cache
-    if homework_status_cache == homework_status:
+    if Cache.homework_status_cache == homework_status:
         logger.debug('отсутствие в ответе новых статусов')
         return None
-    if HOMEWORK_STATUSES[homework_status]:
+    if homework_status in HOMEWORK_STATUSES:
         verdict = HOMEWORK_STATUSES[homework_status]
-        homework_status_cache = homework_status
+        Cache.homework_status_cache = homework_status
         return (f'Изменился статус проверки работы '
                 f'"{homework_name}". {verdict}')
     else:
@@ -108,7 +125,7 @@ def main():
     current_timestamp = int(time.time())
     while True:
         try:
-            check_tokens()
+            assert check_tokens() is True
             response = get_api_answer(current_timestamp - RETRY_TIME)
             check = check_response(response)
             par_stat = parse_status(check)
