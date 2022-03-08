@@ -66,6 +66,7 @@ def get_api_answer(current_timestamp):
         raise SystemExit(error)
     except json.decoder.JSONDecodeError:
         logger.error('JSONDecodeError')
+        raise SystemExit()
     return res
 
 
@@ -75,6 +76,7 @@ def check_response(response):
         homework = response['homeworks']
     except KeyError:
         logger.error('отсутсвие ключа "homeworks" в API')
+        raise SystemExit()
     if not isinstance(homework, list):
         logger.error('не корректный тип API')
         raise ValueError
@@ -125,7 +127,7 @@ def main():
     current_timestamp = int(time.time())
     while True:
         try:
-            assert check_tokens() is True
+            bool(check_tokens()) is True
             response = get_api_answer(current_timestamp - RETRY_TIME)
             check = check_response(response)
             par_stat = parse_status(check)
