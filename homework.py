@@ -127,7 +127,7 @@ def main():
     current_timestamp = int(time.time())
     while True:
         try:
-            bool(check_tokens()) is True
+            assert bool(check_tokens()) is True
             response = get_api_answer(current_timestamp - RETRY_TIME)
             check = check_response(response)
             par_stat = parse_status(check)
