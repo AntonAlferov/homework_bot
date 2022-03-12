@@ -125,9 +125,10 @@ def main():
     """Основная логика работы бота."""
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
+    if bool(check_tokens()) is False:
+        raise SystemExit()
     while True:
         try:
-            assert bool(check_tokens()) is True
             response = get_api_answer(current_timestamp - RETRY_TIME)
             check = check_response(response)
             par_stat = parse_status(check)
