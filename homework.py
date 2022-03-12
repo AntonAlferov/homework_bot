@@ -125,7 +125,7 @@ def main():
     """Основная логика работы бота."""
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
-    if bool(check_tokens()) is False:
+    if not check_tokens():
         raise SystemExit()
     while True:
         try:
